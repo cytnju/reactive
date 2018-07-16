@@ -1,17 +1,14 @@
 package com.muyun.simpledemo;
 
+import io.reactivex.Flowable;
 import io.reactivex.Observable;
-import io.reactivex.Scheduler;
 import io.reactivex.schedulers.Schedulers;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,13 +32,18 @@ public class ReactiveClient {
                 .map(i->Observable.just(new Socket())
                         .zipWith(Observable.just(new InetSocketAddress(HOST,PORT)),ReactiveClient::connect)
                         .subscribeOn(Schedulers.io())
-                        .subscribe(c->Observable.just(c.getOutputStream())
-                                .repeatWhen(o->o.delay(1,TimeUnit.SECONDS))
-                                .doOnNext(out->out.write((DATA+count.incrementAndGet()).getBytes()))
-                                .doOnNext(outputStream -> System.out.println(count.get()))
-                                .subscribe(client->client.flush())))
-                        //.subscribe(ReactiveClient::sendData))
+                        .subscribe(client -> Observable.just(DATA)
+                                .repeatWhen(t->t.delay(1,TimeUnit.SECONDS))
+                                .map(data ->doSendData(client,data+count.incrementAndGet()))
+                                .map(data->"client send: "+data)
+                                .subscribe(System.out::println)))
                 .subscribe();
+//                        .subscribe(c->Observable.just(c.getOutputStream())
+//                                .repeatWhen(o->o.delay(1,TimeUnit.SECONDS))
+//                                .doOnNext(out->out.write((DATA+count.incrementAndGet()).getBytes()))
+//                                .doOnNext(o -> System.out.println("client send :"+DATA+count.get()))
+//                                .subscribe(OutputStream::flush)))
+//                .subscribe();
 
         Thread.sleep(1000000);
 
@@ -50,6 +52,12 @@ public class ReactiveClient {
     public static Socket connect(Socket client,SocketAddress address) throws IOException {
         client.connect(address);
         return client;
+    }
+
+    public static String doSendData(Socket client,String data) throws IOException {
+        client.getOutputStream().write(data.getBytes());
+        client.getOutputStream().flush();
+        return data;
     }
 
 //    public static void sendData(Socket client) throws IOException {

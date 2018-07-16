@@ -40,23 +40,14 @@ public class ReactiveServer {
 //    });
 
     public static void main(String... args) throws IOException, InterruptedException {
-
-        server = new ServerSocket();
-        address = new InetSocketAddress(PORT);
         Observable.just(new ServerSocket())
                 .zipWith(Observable.just(new InetSocketAddress(PORT)),ReactiveServer::bind)
-                .subscribe(s-> Observable
-                        .fromCallable(new SocketCallable(s))
-                        .repeat()
-                        .subscribeOn(Schedulers.newThread())
-                       .subscribe(client->Observable.just(client)
-                                  .subscribeOn(Schedulers.io())
-                                  .subscribe(ReactiveServer::doReceiveData)));
-
-
-
-
-
+                .subscribe(s-> Observable.fromCallable(new SocketCallable(s))
+                                         .repeatUntil(() -> s.isClosed())
+                                         .subscribeOn(Schedulers.computation())
+                                         .subscribe(client->Observable.just(client)
+                                                                      .subscribeOn(Schedulers.io())
+                                                                      .subscribe(ReactiveServer::doReceiveData)));
 
         Thread.sleep(1000000);
 
@@ -68,35 +59,28 @@ public class ReactiveServer {
 
 
     public static ServerSocket bind(ServerSocket server,SocketAddress address) throws IOException {
-        server.bind(address);
+        server.bind(address,100);
         return server;
     }
 
 
-     static class SocketCallable implements Callable<Socket> {
-         private ServerSocket server ;
-         public SocketCallable(ServerSocket server) {
+    static class SocketCallable implements Callable<Socket> {
+        private ServerSocket server ;
+        public SocketCallable(ServerSocket server) {
             this.server = server;
-         }
-         @Override
-         public Socket call() throws Exception {
-             return server.accept();
-         }
+        }
+        @Override
+        public Socket call() throws Exception {
+            return server.accept();
+        }
     }
 
-    public static void doReceiveData(Socket client){
-        System.out.println("receive data start!  "+Thread.currentThread().getName());
-        try {
-            DataInputStream is = new DataInputStream(client.getInputStream());
+    public static void doReceiveData(Socket client) throws IOException {
+        DataInputStream is = new DataInputStream(client.getInputStream());
 
-            byte[] buffer = new byte[100];
-            //client.getInputStream().read(buffer);
-            while(is.read(buffer)!=-1){
-                System.out.println(new String(buffer).trim());
-            }
-            System.out.println("receive data end!  "+Thread.currentThread().getName());
-        } catch (IOException e) {
-            e.printStackTrace();
+        byte[] buffer = new byte[100];
+        while(is.read(buffer)!=-1){
+            System.out.println("server receive: "+new String(buffer).trim());
         }
     }
 

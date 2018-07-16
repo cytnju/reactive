@@ -13,11 +13,11 @@ public class ReactiveHelloWorld {
         Flowable.just("Hello World")
                 .map(it->it.split(""))
                 .flatMap(Flowable::fromArray)
-                .zipWith(Flowable.range(1,100),(str,count)->(str+count))
+                .zipWith(Flowable.range(1,100),(str,count)->(str+" "+count))
                 .zipWith(Flowable.just("Hello World")
                         .map(str->(new StringBuffer(str).reverse().toString()))
                         .map(it->it.split(""))
-                        .flatMap(Flowable::fromArray),(a, b)->(a+b))
+                        .flatMap(Flowable::fromArray),(a, b)->(a+" "+b))
                 .subscribe(System.out::println);
 
     }

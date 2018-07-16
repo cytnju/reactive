@@ -1,9 +1,6 @@
 package com.muyun.simpledemo;
 
-import io.reactivex.Notification;
-import io.reactivex.Observable;
-import io.reactivex.functions.Action;
-import io.reactivex.functions.Consumer;
+import io.reactivex.Flowable;
 import io.reactivex.schedulers.Schedulers;
 
 import java.io.DataInputStream;
@@ -12,6 +9,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author muyun.cyt
@@ -23,35 +21,37 @@ public class ReactiveSocket {
 
     private static final String HOST = "localhost";
 
-    public static void main(String... args) {
-        try {
-            Observable.just(new ServerSocket())
-                    .zipWith(Observable
-                            .just(new InetSocketAddress(PORT)),(s,add)->bind(add,s))
-                    .subscribeOn(Schedulers.newThread())
-                    .subscribe(ReactiveSocket::receiveData);
+    private static final String DATA = "Hello";
+    public static void main(String... args) throws IOException, InterruptedException {
+        //开启一个服务端接收数据并打印
+        Flowable.just(new ServerSocket())
+                .zipWith(Flowable.just(new InetSocketAddress(PORT)),(s,add)->bind(add,s))
+                .subscribeOn(Schedulers.newThread())
+                .map(server -> server.accept())
+                .subscribe(ReactiveSocket::receiveData);
 
-            Thread.sleep(1000);
 
-            Observable.just(new Socket())
-                    .zipWith(Observable
-                            .just(new InetSocketAddress(HOST,PORT)),(s,add)->connect(add,s))
-                    .subscribe(ReactiveSocket::sendData);
+        //开启一个客户端发送数据
+        Flowable.just(new Socket())
+                .zipWith(Flowable.just(new InetSocketAddress(HOST,PORT)),(s,add)->connect(add,s))
+                .subscribe(client -> Flowable.just(DATA)
+                                            .repeatWhen(t->t.delay(1,TimeUnit.SECONDS))
+                                            .map(data ->sendData(client,data))
+                                            .map(data->"client send: "+data)
+                                            .subscribe(System.out::println));
 
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        Thread.sleep(100000);
+//                    .subscribe(ReactiveSocket::sendData);
+//            client.map(Flowable.just(DATA).repeat(),(c,data)->c.getOutputStream().write(data.getBytes()))
+
     }
 
-    public static void receiveData(ServerSocket server) throws IOException {
-        Socket client = server.accept();
+    public static void receiveData(Socket client) throws IOException {
         DataInputStream is = new DataInputStream(client.getInputStream());
         while(true){
             byte[] buffer = new byte[100];
             if(is.read(buffer)!=-1){
-                System.out.println(new String(buffer).trim());
+                System.out.println("server receive: "+new String(buffer).trim());
             }
         }
     }
@@ -67,6 +67,13 @@ public class ReactiveSocket {
             }
         }
     }
+
+    public static String sendData(Socket client,String data) throws IOException {
+        client.getOutputStream().write(data.getBytes());
+        client.getOutputStream().flush();
+        return data;
+    }
+
 
     public static ServerSocket bind(SocketAddress address,ServerSocket server) throws IOException {
         server.bind(address);
