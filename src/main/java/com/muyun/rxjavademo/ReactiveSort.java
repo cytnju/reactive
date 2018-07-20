@@ -1,4 +1,4 @@
-package com.muyun.simpledemo;
+package com.muyun.rxjavademo;
 
 
 import io.reactivex.Observable;
